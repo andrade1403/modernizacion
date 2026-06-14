@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using eShop.Catalog.API.Services;
 using Pgvector;
 
@@ -24,18 +24,16 @@ public partial class CatalogContextSeed(
         {
             var sourcePath = Path.Combine(contentRootPath, "Setup", "catalog.json");
             var sourceJson = File.ReadAllText(sourcePath);
-            var sourceItems = JsonSerializer.Deserialize<CatalogSourceEntry[]>(sourceJson) ?? Array.Empty<CatalogSourceEntry>();
+            var sourceItems = JsonSerializer.Deserialize<CatalogSourceEntry[]>(sourceJson);
 
             context.CatalogBrands.RemoveRange(context.CatalogBrands);
             await context.CatalogBrands.AddRangeAsync(sourceItems.Select(x => x.Brand).Distinct()
-                .Where(brandName => brandName != null)
-                .Select(brandName => new CatalogBrand(brandName!)));
+                .Select(brandName => new CatalogBrand { Brand = brandName }));
             logger.LogInformation("Seeded catalog with {NumBrands} brands", context.CatalogBrands.Count());
 
             context.CatalogTypes.RemoveRange(context.CatalogTypes);
             await context.CatalogTypes.AddRangeAsync(sourceItems.Select(x => x.Type).Distinct()
-                .Where(typeName => typeName != null)
-                .Select(typeName => new CatalogType(typeName!)));
+                .Select(typeName => new CatalogType { Type = typeName }));
             logger.LogInformation("Seeded catalog with {NumTypes} types", context.CatalogTypes.Count());
 
             await context.SaveChangesAsync();
@@ -43,15 +41,14 @@ public partial class CatalogContextSeed(
             var brandIdsByName = await context.CatalogBrands.ToDictionaryAsync(x => x.Brand, x => x.Id);
             var typeIdsByName = await context.CatalogTypes.ToDictionaryAsync(x => x.Type, x => x.Id);
 
-            var catalogItems = sourceItems
-                .Where(source => source.Name != null && source.Brand != null && source.Type != null)
-                .Select(source => new CatalogItem(source.Name!)
+            var catalogItems = sourceItems.Select(source => new CatalogItem
             {
                 Id = source.Id,
+                Name = source.Name,
                 Description = source.Description,
                 Price = source.Price,
-                CatalogBrandId = brandIdsByName[source.Brand!],
-                CatalogTypeId = typeIdsByName[source.Type!],
+                CatalogBrandId = brandIdsByName[source.Brand],
+                CatalogTypeId = typeIdsByName[source.Type],
                 AvailableStock = 100,
                 MaxStockThreshold = 200,
                 RestockThreshold = 10,
@@ -61,10 +58,10 @@ public partial class CatalogContextSeed(
             if (catalogAI.IsEnabled)
             {
                 logger.LogInformation("Generating {NumItems} embeddings", catalogItems.Length);
-                IReadOnlyList<Vector>? embeddings = await catalogAI.GetEmbeddingsAsync(catalogItems);
+                IReadOnlyList<Vector> embeddings = await catalogAI.GetEmbeddingsAsync(catalogItems);
                 for (int i = 0; i < catalogItems.Length; i++)
                 {
-                    catalogItems[i].Embedding = embeddings?[i];
+                    catalogItems[i].Embedding = embeddings[i];
                 }
             }
 
@@ -77,10 +74,10 @@ public partial class CatalogContextSeed(
     private class CatalogSourceEntry
     {
         public int Id { get; set; }
-        public string? Type { get; set; }
-        public string? Brand { get; set; }
-        public string? Name { get; set; }
-        public string? Description { get; set; }
+        public string Type { get; set; }
+        public string Brand { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
         public decimal Price { get; set; }
     }
 }

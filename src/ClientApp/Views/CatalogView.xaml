@@ -1,4 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
+
 <views:ContentPageBase
     x:Class="eShop.ClientApp.Views.CatalogView"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -60,7 +61,7 @@
             x:Name="HeaderImage"
             Grid.RowSpan="2"
             Margin="0,60,0,0"
-            Aspect="AspectFill"
+            Aspect="AspectFit"
             Source="header_home.png"
             VerticalOptions="Start" />
 
@@ -73,7 +74,7 @@
             Scrolled="Products_OnScrolled"
             SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
             SelectionChangedCommand="{Binding ViewCatalogItemCommand, Mode=OneTime}"
-            SelectionChangedCommandParameter="{Binding SelectedItem, Source={RelativeSource Self}, x:DataType=CollectionView}"
+            SelectionChangedCommandParameter="{Binding SelectedItem, Source={RelativeSource Self}}"
             SelectionMode="Single"
             VerticalScrollBarVisibility="Never">
             <CollectionView.Header>
@@ -161,13 +162,13 @@
                                     <DataTemplate x:DataType="viewmodels:CatalogBrandSelectionViewModel">
                                         <Button
                                             Margin="4"
-                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:CatalogViewModel}}, Path=SelectCatalogBrandCommand, x:DataType=viewmodels:CatalogViewModel}"
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:CatalogViewModel}}, Path=SelectCatalogBrandCommand}"
                                             CommandParameter="{Binding Value}"
                                             Style="{StaticResource TransparentButtonStyle}"
                                             Text="{Binding Value.Brand, Mode=OneTime}">
                                             <Button.Triggers>
                                                 <DataTrigger
-                                                    Binding="{Binding Selected, x:DataType=viewmodels:CatalogBrandSelectionViewModel}"
+                                                    Binding="{Binding Selected}"
                                                     TargetType="Button"
                                                     Value="True">
                                                     <Setter Property="TextColor" Value="{StaticResource HighlightColor}" />
@@ -191,13 +192,13 @@
                                     <DataTemplate x:DataType="viewmodels:CatalogTypeSelectionViewModel">
                                         <Button
                                             Margin="4"
-                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:CatalogViewModel}}, Path=SelectCatalogTypeCommand, x:DataType=viewmodels:CatalogViewModel}"
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:CatalogViewModel}}, Path=SelectCatalogTypeCommand}"
                                             CommandParameter="{Binding Value}"
                                             Style="{StaticResource TransparentButtonStyle}"
                                             Text="{Binding Value.Type, Mode=OneTime}">
                                             <Button.Triggers>
                                                 <DataTrigger
-                                                    Binding="{Binding Selected, x:DataType=viewmodels:CatalogTypeSelectionViewModel}"
+                                                    Binding="{Binding Selected}"
                                                     TargetType="Button"
                                                     Value="True">
                                                     <Setter Property="TextColor" Value="{StaticResource HighlightColor}" />

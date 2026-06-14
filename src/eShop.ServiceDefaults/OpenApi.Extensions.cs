@@ -1,11 +1,11 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Scalar.AspNetCore;
+using Microsoft.Extensions.Options;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace eShop.ServiceDefaults;
 
@@ -21,24 +21,45 @@ public static partial class Extensions
             return app;
         }
 
-        app.MapOpenApi().WithDocumentPerVersion();
+        app.UseSwagger();
 
         if (app.Environment.IsDevelopment())
         {
-            var descriptions = app.DescribeApiVersions();
-            var defaultDocument = descriptions.Count > 0 ? descriptions[^1].GroupName : "v1";
-
-            app.MapScalarApiReference(options =>
+            app.UseSwaggerUI(setup =>
             {
-                // Disable default fonts to avoid download unnecessary fonts
-                options.DefaultFonts = false;
+                /// {
+                ///   "OpenApi": {
+                ///     "Endpoint: {
+                ///         "Name": 
+                ///     },
+                ///     "Auth": {
+                ///         "ClientId": ..,
+                ///         "AppName": ..
+                ///     }
+                ///   }
+                /// }
 
-                foreach (var description in descriptions)
+                var pathBase = configuration["PATH_BASE"] ?? string.Empty;
+                var authSection = openApiSection.GetSection("Auth");
+                var endpointSection = openApiSection.GetRequiredSection("Endpoint");
+
+                foreach (var description in app.DescribeApiVersions())
                 {
-                    options.AddDocument(description.GroupName, description.GroupName, isDefault: description.GroupName == defaultDocument);
+                    var name = description.GroupName;
+                    var url = endpointSection["Url"] ?? $"{pathBase}/swagger/{name}/swagger.json";
+
+                    setup.SwaggerEndpoint(url, name);
+                }
+
+                if (authSection.Exists())
+                {
+                    setup.OAuthClientId(authSection.GetRequiredValue("ClientId"));
+                    setup.OAuthAppName(authSection.GetRequiredValue("AppName"));
                 }
             });
-            app.MapGet("/", () => Results.Redirect($"/scalar/{defaultDocument}")).ExcludeFromDescription();
+
+            // Add a redirect from the root of the app to the swagger endpoint
+            app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
         }
 
         return app;
@@ -48,38 +69,24 @@ public static partial class Extensions
         this IHostApplicationBuilder builder,
         IApiVersioningBuilder? apiVersioning = default)
     {
-        var openApi = builder.Configuration.GetSection("OpenApi");
-        var identitySection = builder.Configuration.GetSection("Identity");
-
-        var scopes = identitySection.Exists()
-            ? identitySection.GetRequiredSection("Scopes").GetChildren().ToDictionary(p => p.Key, p => p.Value)
-            : new Dictionary<string, string?>();
-
+        var services = builder.Services;
+        var configuration = builder.Configuration;
+        var openApi = configuration.GetSection("OpenApi");
 
         if (!openApi.Exists())
         {
             return builder;
         }
 
+        services.AddEndpointsApiExplorer();
+
         if (apiVersioning is not null)
         {
             // the default format will just be ApiVersion.ToString(); for example, 1.0.
             // this will format the version as "'v'major[.minor][-status]"
-            apiVersioning.AddApiExplorer(options =>
-                {
-                    options.GroupNameFormat = "'v'VVV";
-                    options.DefaultApiVersionParameterDescription = "The API version, in the format 'major.minor'.";
-                })
-                .AddOpenApi(options =>
-                {
-                    var document = options.Document;
-
-                    document.ApplyApiVersionInfo(openApi.GetRequiredValue("Document:Title"), openApi.GetRequiredValue("Document:Description"));
-                    document.ApplyAuthorizationChecks([.. scopes.Keys]);
-                    document.ApplySecuritySchemeDefinitions();
-                    document.ApplyOperationDeprecatedStatus();
-                    document.ApplyApiVersionDescription();
-                });
+            apiVersioning.AddApiExplorer(options => options.GroupNameFormat = "'v'VVV");
+            services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+            services.AddSwaggerGen(options => options.OperationFilter<OpenApiDefaultValues>());
         }
 
         return builder;

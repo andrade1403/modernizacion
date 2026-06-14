@@ -13,8 +13,6 @@ properties:
     - resource: Microsoft.Windows.Developer/DeveloperMode
       directives:
         description: Enable Developer Mode
-        # Requires elevation only for the set operation
-        securityContext: elevated
         allowPrerelease: true
       settings:
         Ensure: Present
@@ -23,7 +21,6 @@ properties:
     - resource: PSDscResources/WindowsOptionalFeature
       directives:
         description: Install VirtualMachinePlatform
-        securityContext: elevated
       settings:
         name: VirtualMachinePlatform
         ensure: Present
@@ -32,7 +29,6 @@ properties:
     - resource: PSDscResources/WindowsOptionalFeature
       directives:
         description: Install WSL
-        securityContext: elevated
       settings:
         name: Microsoft-Windows-Subsystem-Linux
         ensure: Present
@@ -57,8 +53,7 @@ properties:
       id: dotnetsdk
       directives:
         description: Install DotNET SDK Preview
-        # Requires elevation only for the set operation (i.e., installing the package)
-        securityContext: elevated
+        allowPrerelease: true
       settings:
         id: Microsoft.DotNet.SDK.Preview
     ### Install Azure CLI
@@ -67,37 +62,34 @@ properties:
       id: azurecli
       directives:
         description: Install Azure CLI
-        # Requires elevation only for the set operation (i.e., installing the package)
-        securityContext: elevated
+        allowPrerelease: true
       settings:
-        id:  Microsoft.AzureCLI
+       id:  Microsoft.AzureCLI
     ### Install Azd
     ### -------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: Azd
       directives:
         description: Install Azd
+        allowPrerelease: true
       settings:
-        id: Microsoft.Azd
+       id: Microsoft.Azd
     ### Install Docker Desktop
     ### -------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: docker
       directives:
         description: Install Docker Desktop
-        # Requires elevation only for the set operation (i.e., installing the package)
-        securityContext: elevated
+        allowPrerelease: true
       settings:
-        id: Docker.DockerDesktop
+       id: Docker.DockerDesktop
     ### Install Visual Sudio
     ### -------------------------------------
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: vscommunity
       directives:
-        description: Install Visual Studio 2022 Community
-        # Requires elevation only for the set operation (i.e., installing the package)
-        # Only requires elevation when the VS Installer isn't installed yet
-        securityContext: elevated
+       description: Install Visual Studio 2022 Community
+       allowPrerelease: true
       settings:
         id: Microsoft.VisualStudio.2022.Community.Preview
     ### Install VS Workloads
@@ -105,7 +97,6 @@ properties:
     - resource: Microsoft.VisualStudio.DSC/VSComponents
       directives:
         description: Install required VS workloads from vsconfig file
-        securityContext: elevated
         allowPrerelease: true
       dependsOn:
         - vscommunity

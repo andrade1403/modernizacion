@@ -1,8 +1,4 @@
 ﻿using System.Reflection;
-
-using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
-
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace eShop.Catalog.FunctionalTests;
@@ -50,7 +46,7 @@ public sealed class CatalogApiFixture : WebApplicationFactory<Program>, IAsyncLi
         }
     }
 
-    public async ValueTask InitializeAsync()
+    public async Task InitializeAsync()
     {
         await _app.StartAsync();
         _postgresConnectionString = await Postgres.Resource.GetConnectionStringAsync();

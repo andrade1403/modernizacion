@@ -6,5 +6,3 @@ global using eShop.ClientApp.Services.Order;
 global using eShop.ClientApp.Services.Settings;
 global using eShop.ClientApp.ViewModels;
 global using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-[assembly: Parallelize(Workers = 0, Scope = ExecutionScope.MethodLevel)]

@@ -1,16 +1,15 @@
 ﻿using eShop.AppHost;
+using Microsoft.Extensions.Configuration;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
 builder.AddForwardedHeaders();
 
 var redis = builder.AddRedis("redis");
-var rabbitMq = builder.AddRabbitMQ("eventbus")
-    .WithLifetime(ContainerLifetime.Persistent);
+var rabbitMq = builder.AddRabbitMQ("eventbus");
 var postgres = builder.AddPostgres("postgres")
     .WithImage("ankane/pgvector")
-    .WithImageTag("latest")
-    .WithLifetime(ContainerLifetime.Persistent);
+    .WithImageTag("latest");
 
 var catalogDb = postgres.AddDatabase("catalogdb");
 var identityDb = postgres.AddDatabase("identitydb");
@@ -22,44 +21,42 @@ var launchProfileName = ShouldUseHttpForEndpoints() ? "http" : "https";
 // Services
 var identityApi = builder.AddProject<Projects.Identity_API>("identity-api", launchProfileName)
     .WithExternalHttpEndpoints()
-    .WithReference(identityDb)
-    .WithHttpHealthCheck("/health");
+    .WithReference(identityDb);
 
 var identityEndpoint = identityApi.GetEndpoint(launchProfileName);
 
 var basketApi = builder.AddProject<Projects.Basket_API>("basket-api")
     .WithReference(redis)
-    .WithReference(rabbitMq).WaitFor(rabbitMq)
+    .WithReference(rabbitMq)
     .WithEnvironment("Identity__Url", identityEndpoint);
-redis.WithParentRelationship(basketApi);
 
 var catalogApi = builder.AddProject<Projects.Catalog_API>("catalog-api")
-    .WithReference(rabbitMq).WaitFor(rabbitMq)
+    .WithReference(rabbitMq)
     .WithReference(catalogDb);
 
 var orderingApi = builder.AddProject<Projects.Ordering_API>("ordering-api")
-    .WithReference(rabbitMq).WaitFor(rabbitMq)
-    .WithReference(orderDb).WaitFor(orderDb)
-    .WithHttpHealthCheck("/health")
+    .WithReference(rabbitMq)
+    .WithReference(orderDb)
     .WithEnvironment("Identity__Url", identityEndpoint);
 
 builder.AddProject<Projects.OrderProcessor>("order-processor")
-    .WithReference(rabbitMq).WaitFor(rabbitMq)
-    .WithReference(orderDb)
-    .WaitFor(orderingApi); // wait for the orderingApi to be ready because that contains the EF migrations
+    .WithReference(rabbitMq)
+    .WithReference(orderDb);
 
 builder.AddProject<Projects.PaymentProcessor>("payment-processor")
-    .WithReference(rabbitMq).WaitFor(rabbitMq);
+    .WithReference(rabbitMq);
 
 var webHooksApi = builder.AddProject<Projects.Webhooks_API>("webhooks-api")
-    .WithReference(rabbitMq).WaitFor(rabbitMq)
+    .WithReference(rabbitMq)
     .WithReference(webhooksDb)
     .WithEnvironment("Identity__Url", identityEndpoint);
 
 // Reverse proxies
-builder.AddYarp("mobile-bff")
-    .WithExternalHttpEndpoints()
-    .ConfigureMobileBffRoutes(catalogApi, orderingApi, identityApi);
+builder.AddProject<Projects.Mobile_Bff_Shopping>("mobile-bff")
+    .WithReference(catalogApi)
+    .WithReference(orderingApi)
+    .WithReference(basketApi)
+    .WithReference(identityApi);
 
 // Apps
 var webhooksClient = builder.AddProject<Projects.WebhookClient>("webhooksclient", launchProfileName)
@@ -68,25 +65,50 @@ var webhooksClient = builder.AddProject<Projects.WebhookClient>("webhooksclient"
 
 var webApp = builder.AddProject<Projects.WebApp>("webapp", launchProfileName)
     .WithExternalHttpEndpoints()
-    .WithUrls(c => c.Urls.ForEach(u => u.DisplayText = $"Online Store ({u.Endpoint?.EndpointName})"))
     .WithReference(basketApi)
     .WithReference(catalogApi)
     .WithReference(orderingApi)
-    .WithReference(rabbitMq).WaitFor(rabbitMq)
-    .WaitFor(identityApi)
+    .WithReference(rabbitMq)
     .WithEnvironment("IdentityUrl", identityEndpoint);
 
 // set to true if you want to use OpenAI
 bool useOpenAI = false;
 if (useOpenAI)
 {
-    builder.AddOpenAI(catalogApi, webApp, OpenAITarget.OpenAI); // set to AzureOpenAI if you want to use Azure OpenAI
-}
+    const string openAIName = "openai";
+    const string textEmbeddingName = "text-embedding-3-small";
+    const string chatModelName = "gpt-35-turbo-16k";
 
-bool useOllama = false;
-if (useOllama)
-{
-    builder.AddOllama(catalogApi, webApp);
+    // to use an existing OpenAI resource, add the following to the AppHost user secrets:
+    // "ConnectionStrings": {
+    //   "openai": "Key=<API Key>" (to use https://api.openai.com/)
+    //     -or-
+    //   "openai": "Endpoint=https://<name>.openai.azure.com/" (to use Azure OpenAI)
+    // }
+    IResourceBuilder<IResourceWithConnectionString> openAI;
+    if (builder.Configuration.GetConnectionString(openAIName) is not null)
+    {
+        openAI = builder.AddConnectionString(openAIName);
+    }
+    else
+    {
+        // to use Azure provisioning, add the following to the AppHost user secrets:
+        // "Azure": {
+        //   "SubscriptionId": "<your subscription ID>"
+        //   "Location": "<location>"
+        // }
+        openAI = builder.AddAzureOpenAI(openAIName)
+            .AddDeployment(new AzureOpenAIDeployment(chatModelName, "gpt-35-turbo", "0613"))
+            .AddDeployment(new AzureOpenAIDeployment(textEmbeddingName, "text-embedding-3-small", "1"));
+    }
+
+    catalogApi
+        .WithReference(openAI)
+        .WithEnvironment("AI__OPENAI__EMBEDDINGNAME", textEmbeddingName);
+
+    webApp
+        .WithReference(openAI)
+        .WithEnvironment("AI__OPENAI__CHATMODEL", chatModelName); ;
 }
 
 // Wire up the callback urls (self referencing)

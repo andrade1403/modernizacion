@@ -10,68 +10,53 @@ namespace eShop.Catalog.FunctionalTests;
 public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
 {
     private readonly WebApplicationFactory<Program> _webApplicationFactory;
+    private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web);
 
     public CatalogApiTests(CatalogApiFixture fixture)
     {
+        var handler = new ApiVersionHandler(new QueryStringApiVersionWriter(), new ApiVersion(1.0));
+
         _webApplicationFactory = fixture;
+        _httpClient = _webApplicationFactory.CreateDefaultClient(handler);
     }
 
-    private HttpClient CreateHttpClient(ApiVersion apiVersion)
+    [Fact]
+    public async Task GetCatalogItemsRespectsPageSize()
     {
-        var handler = new ApiVersionHandler(new QueryStringApiVersionWriter(), apiVersion);
-        return _webApplicationFactory.CreateDefaultClient(handler);
-    }
-
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemsRespectsPageSize(double version)
-    {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = await _httpClient.GetAsync("/api/catalog/items?pageIndex=0&pageSize=5", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("/api/catalog/items?pageIndex=0&pageSize=5");
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PaginatedItems<CatalogItem>>(body, _jsonSerializerOptions);
 
-        // Assert 103 total items (101 seeded + 2 added by AddCatalogItem tests) with 5 retrieved from index 0
-        Assert.Equal(103, result.Count);
+        // Assert 12 total items with 5 retrieved from index 0
+        Assert.Equal(101, result.Count);
         Assert.Equal(0, result.PageIndex);
         Assert.Equal(5, result.PageSize);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task UpdateCatalogItemWorksWithoutPriceUpdate(double version)
+    [Fact]
+    public async Task UpdateCatalogItemWorksWithoutPriceUpdate()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act - 1
-        var response = await _httpClient.GetAsync("/api/catalog/items/1", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("/api/catalog/items/1");
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var itemToUpdate = JsonSerializer.Deserialize<CatalogItem>(body, _jsonSerializerOptions);
 
         // Act - 2
         var priorAvailableStock = itemToUpdate.AvailableStock;
         itemToUpdate.AvailableStock -= 1;
-        response = version switch
-        {
-            1.0 => await _httpClient.PutAsJsonAsync("/api/catalog/items", itemToUpdate, TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.PutAsJsonAsync($"/api/catalog/items/{itemToUpdate.Id}", itemToUpdate, TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
+        response = await _httpClient.PutAsJsonAsync("/api/catalog/items", itemToUpdate);
         response.EnsureSuccessStatusCode();
 
         // Act - 3
-        response = await _httpClient.GetAsync("/api/catalog/items/1", TestContext.Current.CancellationToken);
+        response = await _httpClient.GetAsync("/api/catalog/items/1");
         response.EnsureSuccessStatusCode();
-        body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        body = await response.Content.ReadAsStringAsync();
         var updatedItem = JsonSerializer.Deserialize<CatalogItem>(body, _jsonSerializerOptions);
 
         // Assert - 1
@@ -79,35 +64,26 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
         Assert.NotEqual(priorAvailableStock, updatedItem.AvailableStock);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task UpdateCatalogItemWorksWithPriceUpdate(double version)
+    [Fact]
+    public async Task UpdateCatalogItemWorksWithPriceUpdate()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act - 1
-        var response = await _httpClient.GetAsync("/api/catalog/items/1", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("/api/catalog/items/1");
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var itemToUpdate = JsonSerializer.Deserialize<CatalogItem>(body, _jsonSerializerOptions);
 
         // Act - 2
         var priorAvailableStock = itemToUpdate.AvailableStock;
         itemToUpdate.AvailableStock -= 1;
         itemToUpdate.Price = 1.99m;
-        response = version switch
-        {
-            1.0 => await _httpClient.PutAsJsonAsync("/api/catalog/items", itemToUpdate, TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.PutAsJsonAsync($"/api/catalog/items/{itemToUpdate.Id}", itemToUpdate, TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
+        response = await _httpClient.PutAsJsonAsync("/api/catalog/items", itemToUpdate);
         response.EnsureSuccessStatusCode();
 
         // Act - 3
-        response = await _httpClient.GetAsync("/api/catalog/items/1", TestContext.Current.CancellationToken);
+        response = await _httpClient.GetAsync("/api/catalog/items/1");
         response.EnsureSuccessStatusCode();
-        body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        body = await response.Content.ReadAsStringAsync();
         var updatedItem = JsonSerializer.Deserialize<CatalogItem>(body, _jsonSerializerOptions);
 
         // Assert - 1
@@ -116,63 +92,46 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
         Assert.NotEqual(priorAvailableStock, updatedItem.AvailableStock);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemsbyIds(double version)
+    [Fact]
+    public async Task GetCatalogItemsbyIds()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = await _httpClient.GetAsync("/api/catalog/items/by?ids=1&ids=2&ids=3", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("/api/catalog/items/by?ids=1&ids=2&ids=3");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<List<CatalogItem>>(body, _jsonSerializerOptions);
 
-        // Assert 3 items
+        // Assert 3 items      
         Assert.Equal(3, result.Count);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemWithId(double version)
+    [Fact]
+    public async Task GetCatalogItemWithId()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = await _httpClient.GetAsync("/api/catalog/items/2", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("/api/catalog/items/2");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<CatalogItem>(body, _jsonSerializerOptions);
 
-        // Assert
+        // Assert       
         Assert.Equal(2, result.Id);
         Assert.NotNull(result);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemWithExactName(double version)
+    [Fact]
+    public async Task GetCatalogItemWithExactName()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = version switch
-        {
-            1.0 => await _httpClient.GetAsync("api/catalog/items/by/Wanderer%20Black%20Hiking%20Boots?PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.GetAsync("api/catalog/items?name=Wanderer%20Black%20Hiking%20Boots&PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
+        var response = await _httpClient.GetAsync("api/catalog/items/by/Wanderer%20Black%20Hiking%20Boots?PageSize=5&PageIndex=0");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PaginatedItems<CatalogItem>>(body, _jsonSerializerOptions);
 
         // Assert
@@ -183,24 +142,16 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
         Assert.Equal("Wanderer Black Hiking Boots", result.Data.ToList().FirstOrDefault().Name);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemWithPartialName(double version)
+    // searching partial name Alpine
+    [Fact]
+    public async Task GetCatalogItemWithPartialName()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
+       // Act
+       var response = await _httpClient.GetAsync("api/catalog/items/by/Alpine?PageSize=5&PageIndex=0");
 
-        // Act
-        var response = version switch
-        {
-            1.0 => await _httpClient.GetAsync("api/catalog/items/by/Alpine?PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.GetAsync("api/catalog/items?name=Alpine&PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
-
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PaginatedItems<CatalogItem>>(body, _jsonSerializerOptions);
 
         // Assert
@@ -211,72 +162,52 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
         Assert.Contains("Alpine", result.Data.ToList().FirstOrDefault().Name);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemPicWithId(double version)
+
+    [Fact]
+    public async Task GetCatalogItemPicWithId()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = await _httpClient.GetAsync("api/catalog/items/1/pic", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("api/catalog/items/1/pic");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
         var result = response.Content.Headers.ContentType.MediaType;
 
-        // Assert
+        // Assert       
         Assert.Equal("image/webp", result);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemWithsemanticrelevance(double version)
+
+    [Fact]
+    public async Task GetCatalogItemWithsemanticrelevance()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = version switch
-        {
-            1.0 => await _httpClient.GetAsync("api/catalog/items/withsemanticrelevance/Wanderer?PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.GetAsync("api/catalog/items/withsemanticrelevance?text=Wanderer&PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
+        var response = await _httpClient.GetAsync("api/catalog/items/withsemanticrelevance/Wanderer?PageSize=5&PageIndex=0");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PaginatedItems<CatalogItem>>(body, _jsonSerializerOptions);
 
-        // Assert
+        // Assert       
         Assert.Equal(1, result.Count);
         Assert.NotNull(result.Data);
         Assert.Equal(0, result.PageIndex);
         Assert.Equal(5, result.PageSize);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetCatalogItemWithTypeIdBrandId(double version)
+    [Fact]
+    public async Task GetCatalogItemWithTypeIdBrandId()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = version switch
-        {
-            1.0 => await _httpClient.GetAsync("api/catalog/items/type/3/brand/3?PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.GetAsync("api/catalog/items?type=3&brand=3&PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
+        var response = await _httpClient.GetAsync("api/catalog/items/type/3/brand/3?PageSize=5&PageIndex=0");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PaginatedItems<CatalogItem>>(body, _jsonSerializerOptions);
 
-        // Assert
+        // Assert    
         Assert.NotNull(result.Data);
         Assert.Equal(4, result.Count);
         Assert.Equal(0, result.PageIndex);
@@ -285,27 +216,18 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
         Assert.Equal(3, result.Data.ToList().FirstOrDefault().CatalogBrandId);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetAllCatalogTypeItemWithBrandId(double version)
+    [Fact]
+    public async Task GetAllCatalogTypeItemWithBrandId()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = version switch
-        {
-            1.0 => await _httpClient.GetAsync("api/catalog/items/type/all/brand/3?PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            2.0 => await _httpClient.GetAsync("api/catalog/items?brand=3&PageSize=5&PageIndex=0", TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-        };
+        var response = await _httpClient.GetAsync("api/catalog/items/type/all/brand/3?PageSize=5&PageIndex=0");
 
         // Arrange
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<PaginatedItems<CatalogItem>>(body, _jsonSerializerOptions);
 
-        // Assert
+        // Assert              
         Assert.NotNull(result.Data);
         Assert.Equal(11, result.Count);
         Assert.Equal(0, result.PageIndex);
@@ -313,62 +235,45 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
         Assert.Equal(3, result.Data.ToList().FirstOrDefault().CatalogBrandId);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetAllCatalogTypes(double version)
+    [Fact]
+    public async Task GetAllCatalogTypes()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = await _httpClient.GetAsync("api/catalog/catalogtypes", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("api/catalog/catalogtypes");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<List<CatalogType>>(body, _jsonSerializerOptions);
 
-        // Assert
+        // Assert       
         Assert.Equal(8, result.Count);
         Assert.NotNull(result);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task GetAllCatalogBrands(double version)
+    [Fact]
+    public async Task GetAllCatalogBrands()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
         // Act
-        var response = await _httpClient.GetAsync("api/catalog/catalogbrands", TestContext.Current.CancellationToken);
+        var response = await _httpClient.GetAsync("api/catalog/catalogbrands");
 
-        // Arrange
+        // Arrange   
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<List<CatalogBrand>>(body, _jsonSerializerOptions);
 
-        // Assert
+        // Assert       
         Assert.Equal(13, result.Count);
         Assert.NotNull(result);
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task AddCatalogItem(double version)
+    [Fact]
+    public async Task AddCatalogItem()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
-        var id = version switch {
-            1.0 => 10015,
-            2.0 => 10016,
-            _ => 0
-        };
-
         // Act - 1
-        var bodyContent = new CatalogItem("TestCatalog1") {
-            Id = id,
+        var bodyContent = new CatalogItem {
+            Id = 10015,
+            Name = "TestCatalog1",
             Description = "Test catalog description 1",
             Price = 11000.08m,
             PictureFileName = null,
@@ -381,13 +286,13 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
             MaxStockThreshold = 200,
             OnReorder = false
         };
-        var response = await _httpClient.PostAsJsonAsync("/api/catalog/items", bodyContent, TestContext.Current.CancellationToken);
+        var response = await _httpClient.PostAsJsonAsync("/api/catalog/items", bodyContent);
         response.EnsureSuccessStatusCode();
 
         // Act - 2
-        response = await _httpClient.GetAsync($"/api/catalog/items/{id}", TestContext.Current.CancellationToken);
+        response = await _httpClient.GetAsync("/api/catalog/items/10015");
         response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync();
         var addedItem = JsonSerializer.Deserialize<CatalogItem>(body, _jsonSerializerOptions);
 
         // Assert - 1
@@ -395,25 +300,15 @@ public sealed class CatalogApiTests : IClassFixture<CatalogApiFixture>
 
     }
 
-    [Theory]
-    [InlineData(1.0)]
-    [InlineData(2.0)]
-    public async Task DeleteCatalogItem(double version)
+    [Fact]
+    public async Task DeleteCatalogItem()
     {
-        var _httpClient = CreateHttpClient(new ApiVersion(version));
-
-        var id = version switch {
-            1.0 => 5,
-            2.0 => 6,
-            _ => 0
-        };
-
         //Act - 1
-        var response = await _httpClient.DeleteAsync($"/api/catalog/items/{id}", TestContext.Current.CancellationToken);
+        var response = await _httpClient.DeleteAsync("/api/catalog/items/5");
         response.EnsureSuccessStatusCode();
 
         // Act - 2
-        var response1 = await _httpClient.GetAsync($"/api/catalog/items/{id}", TestContext.Current.CancellationToken);
+        var response1 = await _httpClient.GetAsync("/api/catalog/items/5");
         var responseStatus = response1.StatusCode;
 
         // Assert - 1

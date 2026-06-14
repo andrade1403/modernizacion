@@ -3,11 +3,7 @@
 builder.AddServiceDefaults();
 builder.AddApplicationServices();
 
-var withApiVersioning = builder.Services.AddApiVersioning(options =>
-{
-    // Include "api-supported-versions" and "api-deprecated-versions" headers in all responses
-    options.ReportApiVersions = true;
-});
+var withApiVersioning = builder.Services.AddApiVersioning();
 
 builder.AddDefaultOpenApi(withApiVersioning);
 

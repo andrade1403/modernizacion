@@ -15,13 +15,10 @@ public class OrderStatusChangedToAwaitingValidationIntegrationEventHandler(
         foreach (var orderStockItem in @event.OrderStockItems)
         {
             var catalogItem = catalogContext.CatalogItems.Find(orderStockItem.ProductId);
-            if (catalogItem is not null)
-            {
-                var hasStock = catalogItem.AvailableStock >= orderStockItem.Units;
-                var confirmedOrderStockItem = new ConfirmedOrderStockItem(catalogItem.Id, hasStock);
+            var hasStock = catalogItem.AvailableStock >= orderStockItem.Units;
+            var confirmedOrderStockItem = new ConfirmedOrderStockItem(catalogItem.Id, hasStock);
 
-                confirmedOrderStockItems.Add(confirmedOrderStockItem);
-            }
+            confirmedOrderStockItems.Add(confirmedOrderStockItem);
         }
 
         var confirmedIntegrationEvent = confirmedOrderStockItems.Any(c => !c.HasStock)

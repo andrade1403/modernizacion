@@ -1,12 +1,11 @@
 ﻿using eShop.Catalog.API.Services;
-using Microsoft.AspNetCore.Mvc;
 
 public class CatalogServices(
     CatalogContext context,
-    [FromServices] ICatalogAI catalogAI,
+    ICatalogAI catalogAI,
     IOptions<CatalogOptions> options,
     ILogger<CatalogServices> logger,
-    [FromServices] ICatalogIntegrationEventService eventService)
+    ICatalogIntegrationEventService eventService)
 {
     public CatalogContext Context { get; } = context;
     public ICatalogAI CatalogAI { get; } = catalogAI;

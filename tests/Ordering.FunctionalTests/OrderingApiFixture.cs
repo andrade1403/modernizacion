@@ -1,7 +1,4 @@
-﻿using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
-
-using Microsoft.AspNetCore.Mvc.Testing;
+﻿using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Hosting;
 
 namespace eShop.Ordering.FunctionalTests;
@@ -57,7 +54,7 @@ public sealed class OrderingApiFixture : WebApplicationFactory<Program>, IAsyncL
         }
     }
 
-    public async ValueTask InitializeAsync()
+    public async Task InitializeAsync()
     {
         await _app.StartAsync();
         _postgresConnectionString = await Postgres.Resource.GetConnectionStringAsync();
